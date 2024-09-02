@@ -106,7 +106,7 @@ def stream_llm_response(api_key, messages):
     response_messages = []
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name="gemini-1.5-pro")
+    model = genai.GenerativeModel(model_name="gemini-1.5-flash")
 
     gemini_messages = messages_to_gemini(messages)
 
