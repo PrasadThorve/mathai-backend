@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify, render_template, url_for
 import dotenv
 import os
@@ -8,6 +9,7 @@ from io import BytesIO
 import google.generativeai as genai
 import fitz  # PyMuPDF
 import time
+from flask_mail import Mail
 
 #code for signup and login
 import mysql.connector
@@ -20,16 +22,28 @@ from authlib.integrations.flask_client import OAuth
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
+#import datetime
+from datetime import timedelta
+
 #singup validation
-from singupValidation import verify_email, is_valid_email
+from singupValidation import is_valid_email
 
 #aiwriter 
 from ai_writer import get_gemini_response
+
+######### Routes #########
+from routes.auth_routes import auth_routes
+
+
 
 dotenv.load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+#secrete key on the app
+app.secret_key = os.getenv('APP_SECRET_KEY')
+
 
 #google oauth2.0
 # Initialize OAuth
@@ -45,12 +59,39 @@ google = oauth.register(
     client_kwargs={'scope': 'openid profile email'}
 )
 
+# Gmail SMTP server configuration
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587 #if ssl-465, tls-587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False  # Set to False because TLS is being used
+app.config['MAIL_USERNAME'] = os.getenv('EMAIL_ID')
+app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASSWORD')  # Use app password if 2-Step Verification is enabled
+app.config['MAIL_DEFAULT_SENDER'] = 'prasadthorve99@gmail.com'  # Optional: default sender email address
+
+print("email id ", os.getenv('EMAIL_ID'))
+
+mail = Mail(app)
+
 # Load JWT secret key from environment variable
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
+
+# Configure session lifetime to 10 minutes
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=10)
 
 #for password encryption
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
+
+
+############## Blue Prints here ############################3
+app.register_blueprint(auth_routes)
+
+
+###################  code testing ###########################
+
+
+
+##############################################################
 
 # Helper Functions
 def get_image_base64(image_raw):
@@ -106,7 +147,7 @@ def stream_llm_response(api_key, messages):
     response_messages = []
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+    model = genai.GenerativeModel(model_name="gemini-1.5-pro")
 
     gemini_messages = messages_to_gemini(messages)
 
@@ -194,7 +235,6 @@ def signup():
         if not is_valid_email(email):
             return jsonify({"error": "Invalid email format"}), 400
 
-        
         # Hash the password
         password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
 
