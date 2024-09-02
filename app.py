@@ -20,6 +20,12 @@ from authlib.integrations.flask_client import OAuth
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
+#singup validation
+from singupValidation import verify_email, is_valid_email
+
+#aiwriter 
+from ai_writer import get_gemini_response
+
 dotenv.load_dotenv()
 
 app = Flask(__name__)
@@ -100,7 +106,7 @@ def stream_llm_response(api_key, messages):
     response_messages = []
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name="gemini-1.5-pro")
+    model = genai.GenerativeModel(model_name="gemini-1.5-flash")
 
     gemini_messages = messages_to_gemini(messages)
 
@@ -156,42 +162,22 @@ def upload():
     
     return jsonify({"error": "Unsupported file type"}), 400
 
-#routes for signup and login
-# Signup Route
-# @app.route('/signup', methods=['POST'])
-# def signup():
-#     data = request.json
-#     username = data.get('username')
-#     email = data.get('email')
-#     password = data.get('password')
+#api for ai_writer
+@app.route('/api/ai_writer', methods=['POST'])
+def ai_writer():
+    data = request.json
+    input_text = data.get('input_text')
+    no_words = data.get('no_words')
+    blog_style = data.get('blog_style')
 
-#     # Hash the password
-#     password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+    if not input_text or not no_words or not blog_style:
+        return jsonify({"error": "Missing input data"}), 400
 
-#     try:
-#         conn = get_db_connection()
-#         cursor = conn.cursor()
+    response_text = get_gemini_response(input_text, no_words, blog_style)
+    return jsonify({"generated_text": response_text})
 
-#         # Check if user already exists
-#         cursor.execute('SELECT * FROM users WHERE email = %s', (email,))
-#         user = cursor.fetchone()
-#         if user:
-#             return jsonify({"error": "User already exists"}), 400
 
-#         # Insert new user
-#         cursor.execute('''
-#             INSERT INTO users (username, email, password_hash)
-#             VALUES (%s, %s, %s)
-#         ''', (username, email, password_hash))
-
-#         conn.commit()
-#         cursor.close()
-#         conn.close()
-
-#         return jsonify({"message": "User created successfully"}), 201
-#     except mysql.connector.Error as err:
-#         return jsonify({"error - mysql connection issue": str(err)}), 500
-
+#api for singup
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'GET':
@@ -203,7 +189,12 @@ def signup():
         username = data.get('username')
         email = data.get('email')
         password = data.get('password')
+        
+        # Validate email format
+        if not is_valid_email(email):
+            return jsonify({"error": "Invalid email format"}), 400
 
+        
         # Hash the password
         password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
 
@@ -238,6 +229,7 @@ def login():
     data = request.json
     email = data.get('email')
     password = data.get('password')
+    print("\ndata : ",data)
 
     try:
         conn = get_db_connection()
